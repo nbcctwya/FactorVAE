@@ -18,12 +18,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default="/qlib_data/cn_data")
     parser.add_argument("--freq", type=str, default="day")
-    parser.add_argument('--start_time', type=str, default='2008-01-01')
-    parser.add_argument('--end_time', type=str, default='2020-12-31')
-    parser.add_argument('--fit_end_time', type=str, default='2017-12-31')
-    parser.add_argument('--val_start_time', type=str, default='2018-01-01')
-    parser.add_argument('--val_end_time', type=str, default='2018-12-31')
-    parser.add_argument('--test_start_time', type=str, default='2019-01-01')
+    parser.add_argument('--start_time', type=str, default='2009-01-01')
+    parser.add_argument('--end_time', type=str, default='2025-12-31')
+    parser.add_argument('--fit_end_time', type=str, default='2020-12-31')
+    parser.add_argument('--val_start_time', type=str, default='2021-01-01')
+    parser.add_argument('--val_end_time', type=str, default='2022-12-31')
+    parser.add_argument('--test_start_time', type=str, default='2023-01-01')
     parser.add_argument('--seq_len', type=int, default=21)
     args = parser.parse_args()
 
@@ -91,9 +91,9 @@ if __name__ == "__main__":
 
     handler = DataHandlerLP.from_df(dataframe_LM)
     dic =  {
-            'train': ("2009-01-01", "2019-06-30"),
-            'valid': ("2019-07-01", "2019-12-31",),
-            'test': ("2020-01-01", "2022-12-31",),
+            'train': ("2009-01-01", "2020-12-31"),
+            'valid': ("2021-01-01", "2022-12-31",),
+            'test': ("2023-01-01", "2025-12-31",),
         }
     QlibTSDatasetH = TSDatasetH(handler=handler, segments=dic, step_len=20)
     temp = QlibTSDatasetH.prepare(segments="train", data_key=DataHandlerLP.DK_L)

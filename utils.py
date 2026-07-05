@@ -23,25 +23,25 @@ class DataArgument:
         metadata={"help": 'directory to save model'}
     )
     start_time: str = field(
-        default="2010-12-01",
+        default="2009-01-01",
         metadata={"help": "start_time"}
     )
     end_time: str =field(
-        default='2020-12-31', 
+        default='2025-12-31',
         metadata={"help": "end_time"}
     )
 
     fit_end_time: str= field(
-        default="2017-12-31", 
+        default="2020-12-31",
         metadata={"help": "fit_end_time"}
     )
 
     val_start_time : str = field(
-        default='2018-01-01', 
+        default='2021-01-01',
         metadata={"help": "val_start_time"}
     )
 
-    val_end_time: str =field(default='2018-12-31')
+    val_end_time: str =field(default='2022-12-31')
 
     seq_len : int = field(default=20)
 

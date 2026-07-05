@@ -101,10 +101,10 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', type=str, default='./data/csi_data.pkl', help='dataset to use')
     parser.add_argument('--start_time', type=str, default='2009-01-01', help='start time')
-    parser.add_argument('--fit_end_time', type=str, default='2017-12-31', help='fit end time')
-    parser.add_argument('--val_start_time', type=str, default='2018-01-01', help='validation start time')
-    parser.add_argument('--val_end_time', type=str, default='2018-12-31', help='validation end time')
-    parser.add_argument('--end_time', type=str, default='2020-12-31', help='end time')
+    parser.add_argument('--fit_end_time', type=str, default='2020-12-31', help='fit end time')
+    parser.add_argument('--val_start_time', type=str, default='2021-01-01', help='validation start time')
+    parser.add_argument('--val_end_time', type=str, default='2022-12-31', help='validation end time')
+    parser.add_argument('--end_time', type=str, default='2025-12-31', help='end time')
 
     parser.add_argument('--seed', type=int, default=42, help='random seed')
     parser.add_argument('--run_name', type=str, default='VAE-Revision2', help='name of the run')
