@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import random
 from tqdm.auto import tqdm
 import argparse
 from module import FactorVAE, FeatureExtractor, FactorDecoder, FactorEncoder, FactorPredictor, AlphaLayer, BetaLayer
@@ -19,6 +20,66 @@ try:
     import wandb
 except ImportError:
     wandb = None
+
+
+def get_run_file_prefix(args):
+    return (
+        f"{args.run_name}_factor_{args.num_factor}_hdn_{args.hidden_size}"
+        f"_port_{args.num_portfolio}_seed_{args.seed}"
+    )
+
+
+def get_checkpoint_path(args):
+    return os.path.join(args.save_dir, f"{get_run_file_prefix(args)}_checkpoint.pt")
+
+
+def save_checkpoint(path, epoch, model, optimizer, scheduler, best_val_loss, args):
+    checkpoint = {
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
+        "best_val_loss": best_val_loss,
+        "rng_state": {
+            "python": random.getstate(),
+            "numpy": np.random.get_state(),
+            "torch": torch.get_rng_state(),
+            "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        },
+        "config": {
+            "run_name": args.run_name,
+            "seed": args.seed,
+            "num_factor": args.num_factor,
+            "hidden_size": args.hidden_size,
+            "num_portfolio": args.num_portfolio,
+            "num_latent": args.num_latent,
+            "lr": args.lr,
+        },
+    }
+    torch.save(checkpoint, path)
+
+
+def load_checkpoint(path, model, optimizer, scheduler, device):
+    try:
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
+    except TypeError:
+        checkpoint = torch.load(path, map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+    rng_state = checkpoint.get("rng_state", {})
+    if "python" in rng_state:
+        random.setstate(rng_state["python"])
+    if "numpy" in rng_state:
+        np.random.set_state(rng_state["numpy"])
+    if "torch" in rng_state:
+        torch.set_rng_state(rng_state["torch"])
+    if torch.cuda.is_available() and rng_state.get("cuda") is not None:
+        torch.cuda.set_rng_state_all(rng_state["cuda"])
+
+    return checkpoint
 
 
 def main(args, data_args):
@@ -78,8 +139,31 @@ def main(args, data_args):
         
     factorVAE.to(device)
     best_val_loss = 10000.0
+    start_epoch = 0
     optimizer = torch.optim.Adam(factorVAE.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
+    checkpoint_path = get_checkpoint_path(args)
+
+    if args.resume:
+        resume_path = checkpoint_path if args.resume == "auto" else args.resume
+        if not os.path.exists(resume_path):
+            raise FileNotFoundError(f"Checkpoint not found: {resume_path}")
+        checkpoint = load_checkpoint(resume_path, factorVAE, optimizer, scheduler, device)
+        start_epoch = checkpoint["epoch"] + 1
+        best_val_loss = checkpoint.get("best_val_loss", best_val_loss)
+        print(
+            f"Resumed checkpoint from {resume_path} "
+            f"(next epoch: {start_epoch + 1}, best validation loss: {best_val_loss:.4f})",
+            flush=True,
+        )
+
+    if start_epoch >= args.num_epochs:
+        print(
+            f"Checkpoint is already at epoch {start_epoch}; "
+            f"num_epochs={args.num_epochs}, nothing to train.",
+            flush=True,
+        )
+        return
 
     if args.wandb:
         if wandb is None:
@@ -87,8 +171,8 @@ def main(args, data_args):
         wandb.init(project="FactorVAE", config=args, name=f"{args.run_name}")
         wandb.config.update(args)
 
-    print(f"Starting training for {args.num_epochs} epochs...", flush=True)
-    for epoch in tqdm(range(args.num_epochs)):
+    print(f"Starting training from epoch {start_epoch + 1} to {args.num_epochs}...", flush=True)
+    for epoch in tqdm(range(start_epoch, args.num_epochs), initial=start_epoch, total=args.num_epochs):
         train_loss = train(factorVAE, train_dataloader, optimizer, scheduler, args)
         val_loss = validate(factorVAE, valid_dataloader, args)
 
@@ -98,9 +182,12 @@ def main(args, data_args):
             #? save model in save_dir
             
             #? torch.save
-            save_root = os.path.join(args.save_dir, f'{args.run_name}_factor_{args.num_factor}_hdn_{args.hidden_size}_port_{args.num_portfolio}_seed_{args.seed}.pt')
+            save_root = os.path.join(args.save_dir, f'{get_run_file_prefix(args)}.pt')
             torch.save(factorVAE.state_dict(), save_root)
             print(f"Model saved at {save_root}", flush=True)
+
+        save_checkpoint(checkpoint_path, epoch, factorVAE, optimizer, scheduler, best_val_loss, args)
+        print(f"Checkpoint saved at {checkpoint_path}", flush=True)
             
         if args.wandb:
             wandb.log({"Train Loss": train_loss, "Validation Loss": val_loss, "Learning Rate": scheduler.get_last_lr()[0]})
@@ -137,6 +224,7 @@ if __name__ == '__main__':
     parser.add_argument('--run_name', type=str, default=train_config.get("run_name"), help='name of the run')
     parser.add_argument('--save_dir', type=str, default=train_config.get("save_dir"), help='directory to save model')
     parser.add_argument('--num_workers', type=int, default=train_config.get("num_workers"), help='number of workers for dataloader')
+    parser.add_argument('--resume', type=str, default=train_config.get("resume"), help='path to checkpoint to resume from, or "auto" to use the seed-specific checkpoint')
     parser.add_argument('--wandb', action=argparse.BooleanOptionalAction, default=train_config.get("wandb", False), help='whether to use wandb')
     args = parser.parse_args()
 
