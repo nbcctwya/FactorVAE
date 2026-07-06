@@ -5,7 +5,10 @@ data/delete/*
 
 .vscode/*
 __pycache__/*
+__pycache__/
+*.py[cod]
 wandb/*
+logs/
 best_models/*
 backtest_new.ipynb
 backtest_nasdaq.ipynb

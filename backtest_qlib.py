@@ -5,6 +5,8 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from config_utils import get_config_section, load_config, parse_config_path
+
 
 # 论文指标按 252 个交易日年化。
 TRADING_DAYS = 252
@@ -266,27 +268,36 @@ def _save_outputs(
 
 
 def parse_args() -> argparse.Namespace:
+    config_args = parse_config_path(
+        "Run Qlib native portfolio backtest from PRISM-VQ stage2 prediction scores."
+    )
+    backtest_config = get_config_section(load_config(config_args.config), "backtest_qlib")
+
     parser = argparse.ArgumentParser(
         description="Run Qlib native portfolio backtest from PRISM-VQ stage2 prediction scores."
     )
-    parser.add_argument("--pred_path", required=True, help="Path to stage2 *_best.pkl prediction file.")
-    parser.add_argument("--universe", required=True, choices=sorted(UNIVERSE_SETTINGS), help="Market universe.")
-    parser.add_argument("--qlib_provider_uri", default=None, help="Qlib data path. Defaults by universe.")
-    parser.add_argument("--start_time", default="2023-01-01", help="Backtest start date.")
-    parser.add_argument("--end_time", default="2025-12-31", help="Backtest end date.")
-    parser.add_argument("--topk", type=int, default=30, help="Top-k holdings for Qlib TopkDropoutStrategy.")
-    parser.add_argument("--drop", type=int, default=5, help="Number of holdings to replace each trading day.")
-    parser.add_argument("--open_cost", type=float, default=0.0005, help="Open transaction cost.")
-    parser.add_argument("--close_cost", type=float, default=0.0015, help="Close transaction cost.")
-    parser.add_argument("--min_cost", type=float, default=0.0, help="Minimum transaction cost.")
-    parser.add_argument("--account", type=float, default=100000000.0, help="Initial account value.")
-    parser.add_argument("--benchmark", default=None, help="Override benchmark instrument.")
+    parser.add_argument("--config", default=config_args.config, help="path to JSON config file")
+    parser.add_argument("--pred_path", default=backtest_config.get("pred_path"), help="Path to stage2 *_best.pkl prediction file.")
+    parser.add_argument("--universe", default=backtest_config.get("universe"), choices=sorted(UNIVERSE_SETTINGS), help="Market universe.")
+    parser.add_argument("--qlib_provider_uri", default=backtest_config.get("qlib_provider_uri"), help="Qlib data path. Defaults by universe.")
+    parser.add_argument("--start_time", default=backtest_config.get("start_time"), help="Backtest start date.")
+    parser.add_argument("--end_time", default=backtest_config.get("end_time"), help="Backtest end date.")
+    parser.add_argument("--topk", type=int, default=backtest_config.get("topk"), help="Top-k holdings for Qlib TopkDropoutStrategy.")
+    parser.add_argument("--drop", type=int, default=backtest_config.get("drop"), help="Number of holdings to replace each trading day.")
+    parser.add_argument("--open_cost", type=float, default=backtest_config.get("open_cost"), help="Open transaction cost.")
+    parser.add_argument("--close_cost", type=float, default=backtest_config.get("close_cost"), help="Close transaction cost.")
+    parser.add_argument("--min_cost", type=float, default=backtest_config.get("min_cost"), help="Minimum transaction cost.")
+    parser.add_argument("--account", type=float, default=backtest_config.get("account"), help="Initial account value.")
+    parser.add_argument("--benchmark", default=backtest_config.get("benchmark"), help="Override benchmark instrument.")
     parser.add_argument(
         "--output_dir",
-        default=None,
+        default=backtest_config.get("output_dir"),
         help="Output directory. Defaults to pred_path parent/backtest/seedX_topK_dropD.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.pred_path is None:
+        parser.error("--pred_path must be set in the config file or passed on the command line")
+    return args
 
 
 def main() -> None:

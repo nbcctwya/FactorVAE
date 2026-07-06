@@ -25,11 +25,10 @@ import qlib
 from qlib.backtest import backtest, executor
 from qlib.constant import REG_CN, REG_US
 from qlib.contrib.evaluate import risk_analysis
-from qlib.contrib.report import analysis_position
-import qlib.contrib.report as qcr
 from qlib.contrib.strategy import TopkDropoutStrategy
 from qlib.utils.time import Freq
 
+from config_utils import get_config_section, load_config, parse_config_path
 from dataset import init_data_loader
 from utils import test_args, load_model, RankIC
 
@@ -97,6 +96,9 @@ def run_backtest(output, args):
 
 def save_report_figure(report_normal_df, save_dir):
     """Save qlib's position report as an interactive HTML (plotly)."""
+    from qlib.contrib.report import analysis_position
+    import qlib.contrib.report as qcr
+
     print("Available graphs:", qcr.GRAPH_NAME_LIST)
     try:
         fig = analysis_position.report_graph(report_normal_df)
@@ -109,38 +111,47 @@ def save_report_figure(report_normal_df, save_dir):
 
 
 def main():
+    config_args = parse_config_path("FactorVAE backtest")
+    backtest_config = get_config_section(load_config(config_args.config), "backtest")
+
     parser = argparse.ArgumentParser(description="FactorVAE backtest")
+    parser.add_argument("--config", default=config_args.config, help="path to JSON config file")
 
     # model structure — must match the trained checkpoint
-    parser.add_argument("--model_path", type=str, required=True,
+    parser.add_argument("--model_path", type=str, default=backtest_config.get("model_path"),
                         help="path to the trained .pt checkpoint")
-    parser.add_argument("--num_factor", type=int, default=96)
-    parser.add_argument("--num_portfolio", type=int, default=128)
-    parser.add_argument("--hidden_size", type=int, default=64)
-    parser.add_argument("--num_latent", type=int, default=158)
-    parser.add_argument("--run_name", type=str, default="VAE-Revision2")
+    parser.add_argument("--num_factor", type=int, default=backtest_config.get("num_factor"))
+    parser.add_argument("--num_portfolio", type=int, default=backtest_config.get("num_portfolio"))
+    parser.add_argument("--hidden_size", type=int, default=backtest_config.get("hidden_size"))
+    parser.add_argument("--num_latent", type=int, default=backtest_config.get("num_latent"))
+    parser.add_argument("--run_name", type=str, default=backtest_config.get("run_name"))
 
     # data / inference
-    parser.add_argument("--data_path", type=str, default="data/csi_300_inference.pkl")
-    parser.add_argument("--test_start", type=str, default="2023-01-01")
-    parser.add_argument("--test_end", type=str, default="2025-12-31")
-    parser.add_argument("--seq_len", type=int, default=20)
-    parser.add_argument("--num_cols", type=int, default=159,
+    parser.add_argument("--data_path", type=str, default=backtest_config.get("data_path"))
+    parser.add_argument("--test_start", type=str, default=backtest_config.get("test_start"))
+    parser.add_argument("--test_end", type=str, default=backtest_config.get("test_end"))
+    parser.add_argument("--seq_len", type=int, default=backtest_config.get("seq_len"))
+    parser.add_argument("--num_cols", type=int, default=backtest_config.get("num_cols"),
                         help="iloc[:, :num_cols]; 158 features + 1 label")
 
     # qlib backtest
-    parser.add_argument("--qlib_data_path", type=str, default="~/.qlib/qlib_data/cn_data")
-    parser.add_argument("--benchmark", type=str, default="SH000300")
-    parser.add_argument("--topk", type=int, default=50)
-    parser.add_argument("--n_drop", type=int, default=10)
-    parser.add_argument("--freq", type=str, default="day")
-    parser.add_argument("--account", type=float, default=1e8)
+    parser.add_argument("--qlib_data_path", type=str, default=backtest_config.get("qlib_data_path"))
+    parser.add_argument("--benchmark", type=str, default=backtest_config.get("benchmark"))
+    parser.add_argument("--topk", type=int, default=backtest_config.get("topk"))
+    parser.add_argument("--n_drop", type=int, default=backtest_config.get("n_drop"))
+    parser.add_argument("--freq", type=str, default=backtest_config.get("freq"))
+    parser.add_argument("--account", type=float, default=backtest_config.get("account"))
 
     # output
-    parser.add_argument("--save_dir", type=str, default="./backtest_results")
-    parser.add_argument("--no_figure", action="store_true", help="skip saving the HTML report figure")
+    parser.add_argument("--save_dir", type=str, default=backtest_config.get("save_dir"))
+    figure_group = parser.add_mutually_exclusive_group()
+    figure_group.add_argument("--no_figure", dest="no_figure", action="store_true", help="skip saving the HTML report figure")
+    figure_group.add_argument("--figure", dest="no_figure", action="store_false", help="save the HTML report figure")
+    parser.set_defaults(no_figure=backtest_config.get("no_figure", False))
 
     args = parser.parse_args()
+    if args.model_path is None:
+        parser.error("--model_path must be set in the config file or passed on the command line")
     args.qlib_data_path = os.path.expanduser(args.qlib_data_path)
     os.makedirs(args.save_dir, exist_ok=True)
 

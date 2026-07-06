@@ -5,7 +5,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 import pandas as pd
 import numpy as np
-import wandb
 from tqdm.auto import tqdm
 
 def train(factor_model, dataloader, optimizer, scheduler, args):
