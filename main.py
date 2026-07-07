@@ -61,9 +61,9 @@ def save_checkpoint(path, epoch, model, optimizer, scheduler, best_val_loss, arg
 
 def load_checkpoint(path, model, optimizer, scheduler, device):
     try:
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
     except TypeError:
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     if scheduler is not None and checkpoint.get("scheduler_state_dict") is not None:
@@ -75,9 +75,9 @@ def load_checkpoint(path, model, optimizer, scheduler, device):
     if "numpy" in rng_state:
         np.random.set_state(rng_state["numpy"])
     if "torch" in rng_state:
-        torch.set_rng_state(rng_state["torch"])
+        torch.set_rng_state(rng_state["torch"].cpu())
     if torch.cuda.is_available() and rng_state.get("cuda") is not None:
-        torch.cuda.set_rng_state_all(rng_state["cuda"])
+        torch.cuda.set_rng_state_all([state.cpu() for state in rng_state["cuda"]])
 
     return checkpoint
 
